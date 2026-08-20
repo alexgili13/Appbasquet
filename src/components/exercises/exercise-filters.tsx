@@ -147,7 +147,11 @@ export function ExerciseFilters({
               </Link>
             </Button>
           )}
-          <Button type="submit" size="sm">
+          <Button
+            type="submit"
+            size="sm"
+            className="bg-green-600 text-white hover:bg-green-700"
+          >
             Aplica
           </Button>
         </div>
