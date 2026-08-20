@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { PhotoUploader } from "@/components/media/photo-uploader";
 import {
   AGE_STAGE_OPTIONS,
   LEVEL_OPTIONS,
@@ -14,6 +15,7 @@ import {
 import type { ExerciseActionState } from "@/lib/actions/exercises";
 import type { Category } from "@/lib/db/schema";
 import type { ExerciseDetail } from "@/lib/db/queries/exercises";
+import type { PendingPhotoInput } from "@/lib/validations/media";
 
 type Action = (
   state: ExerciseActionState,
@@ -36,9 +38,11 @@ export function ExerciseForm({
     FormData
   >(action, undefined);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [pendingPhoto, setPendingPhoto] = useState<PendingPhotoInput | null>(null);
 
   const fieldErrors = state?.fieldErrors ?? {};
   const initialTags = initial?.exerciseTags.map((et) => et.tag.name).join(", ") ?? "";
+
 
   return (
     <form action={formAction} className="space-y-8 pb-24">
@@ -96,6 +100,28 @@ export function ExerciseForm({
             placeholder="tir, exterior, jump shot (separades per comes)"
           />
         </Field>
+
+        {!initial && (
+          <div className="space-y-1.5">
+            <Label>Fotografia (opcional)</Label>
+            <PhotoUploader onUploaded={setPendingPhoto} />
+            {pendingPhoto && (
+              <>
+                <input type="hidden" name="photoBlobUrl" value={pendingPhoto.blobUrl} />
+                <input type="hidden" name="photoBlobPathname" value={pendingPhoto.blobPathname} />
+                {pendingPhoto.width !== undefined && (
+                  <input type="hidden" name="photoWidth" value={pendingPhoto.width} />
+                )}
+                {pendingPhoto.height !== undefined && (
+                  <input type="hidden" name="photoHeight" value={pendingPhoto.height} />
+                )}
+                {pendingPhoto.sizeBytes !== undefined && (
+                  <input type="hidden" name="photoSizeBytes" value={pendingPhoto.sizeBytes} />
+                )}
+              </>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Informació avançada / opcional */}

@@ -8,7 +8,10 @@ import {
   parseTagsInput,
   type ExerciseFormInput,
 } from "@/lib/validations/exercise";
+import { pendingPhotoSchema } from "@/lib/validations/media";
 import { getOrCreateTagIds } from "@/lib/db/queries/tags";
+import { db } from "@/lib/db";
+import { mediaAssets } from "@/lib/db/schema";
 import {
   insertExercise,
   updateExerciseById,
@@ -16,6 +19,25 @@ import {
   getExerciseAuthorId,
   duplicateExercise as duplicateExerciseQuery,
 } from "@/lib/db/queries/exercises";
+
+/** Llegeix les metadades de la foto pujada abans de crear l'exercici (si n'hi ha). */
+function parsePendingPhoto(formData: FormData) {
+  const blobUrl = formData.get("photoBlobUrl");
+  if (!blobUrl) return null;
+
+  const toNumber = (value: FormDataEntryValue | null) =>
+    typeof value === "string" && value !== "" ? Number(value) : undefined;
+
+  const parsed = pendingPhotoSchema.safeParse({
+    blobUrl,
+    blobPathname: formData.get("photoBlobPathname"),
+    width: toNumber(formData.get("photoWidth")),
+    height: toNumber(formData.get("photoHeight")),
+    sizeBytes: toNumber(formData.get("photoSizeBytes")),
+  });
+
+  return parsed.success ? parsed.data : null;
+}
 
 export type ExerciseActionState = {
   error?: string;
@@ -66,6 +88,11 @@ export async function createExerciseAction(
   const tagIds = await getOrCreateTagIds(parseTagsInput(tagsRaw));
 
   const created = await insertExercise({ ...data, authorId: user.id }, tagIds);
+
+  const pendingPhoto = parsePendingPhoto(formData);
+  if (pendingPhoto) {
+    await db.insert(mediaAssets).values({ ...pendingPhoto, exerciseId: created.id, type: "photo" });
+  }
 
   revalidatePath("/");
   redirect(`/exercises/${created.id}`);

@@ -8,12 +8,20 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { attachMediaAction } from "@/lib/actions/media";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE_BYTES } from "@/lib/media";
+import type { PendingPhotoInput } from "@/lib/validations/media";
 
-export function PhotoUploader({ exerciseId }: { exerciseId: string }) {
+type PhotoUploaderProps =
+  | { exerciseId: string; onUploaded?: undefined }
+  // Mode "pendent": encara no hi ha exerciseId (formulari de creació), així
+  // que només pugem el fitxer i retornem les metadades al pare.
+  | { exerciseId?: undefined; onUploaded: (photo: PendingPhotoInput) => void };
+
+export function PhotoUploader({ exerciseId, onUploaded }: PhotoUploaderProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const previousObjectUrl = useRef<string | null>(null);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -30,7 +38,9 @@ export function PhotoUploader({ exerciseId }: { exerciseId: string }) {
       return;
     }
 
+    if (previousObjectUrl.current) URL.revokeObjectURL(previousObjectUrl.current);
     const objectUrl = URL.createObjectURL(file);
+    previousObjectUrl.current = objectUrl;
     setPreview(objectUrl);
     setIsUploading(true);
 
@@ -43,28 +53,43 @@ export function PhotoUploader({ exerciseId }: { exerciseId: string }) {
         clientPayload: JSON.stringify({ exerciseId }),
       });
 
-      const result = await attachMediaAction({
-        exerciseId,
-        type: "photo",
-        blobUrl: uploaded.url,
-        blobPathname: uploaded.pathname,
-        width: dimensions.width,
-        height: dimensions.height,
-        sizeBytes: file.size,
-      });
-
-      if (result?.error) {
-        toast.error(result.error);
-      } else {
+      if (onUploaded) {
+        onUploaded({
+          blobUrl: uploaded.url,
+          blobPathname: uploaded.pathname,
+          width: dimensions.width,
+          height: dimensions.height,
+          sizeBytes: file.size,
+        });
         toast.success("Fotografia afegida.");
-        router.refresh();
+      } else {
+        const result = await attachMediaAction({
+          exerciseId,
+          type: "photo",
+          blobUrl: uploaded.url,
+          blobPathname: uploaded.pathname,
+          width: dimensions.width,
+          height: dimensions.height,
+          sizeBytes: file.size,
+        });
+
+        if (result?.error) {
+          toast.error(result.error);
+        } else {
+          toast.success("Fotografia afegida.");
+          router.refresh();
+        }
       }
     } catch {
       toast.error("No s'ha pogut pujar la fotografia. Torna-ho a provar.");
     } finally {
       setIsUploading(false);
-      setPreview(null);
-      URL.revokeObjectURL(objectUrl);
+      // En mode pendent conservem la previsualització fins que es creï l'exercici.
+      if (!onUploaded) {
+        setPreview(null);
+        URL.revokeObjectURL(objectUrl);
+        previousObjectUrl.current = null;
+      }
       if (inputRef.current) inputRef.current.value = "";
     }
   }
